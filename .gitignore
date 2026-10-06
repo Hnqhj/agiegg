@@ -1,0 +1,18 @@
+# ===== AGIEGG 仓库忽略规则 =====
+
+# 编译产出的便携 exe（本地/CI 构建，不入库）
+build/AGIEGG.exe
+build/agiegg_runtime/
+
+# 仓库截图预览（保持仓库纯净）
+build/*.png
+
+# 真实账号凭证（红线：绝不入库，仅本地使用）
+embedded/wb/auths/*.json
+!embedded/wb/auths/.gitkeep
+
+# 编辑器 / 系统临时
+*.tmp
+*.swp
+*.log
+.DS_Store

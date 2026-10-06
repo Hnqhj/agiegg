@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AGIEGG · 账号池启动器</title>
+<!--
+  ============================ DESIGN READ（taste-skill §0.B / §12.D） ============================
+  产品类型   : 桌面启动器 / 账号池控制台（产品 UI）
+  诚实声明   : taste-skill §13 的核心品味体系面向营销页/内容页；本页是产品 UI，
+               只套用其可迁移规则（反 AI 味五条 + 一致性 + 可访问性），不硬套叙事化排版。
+  美学锚点   : GitHub Primer（用户指定的参考物）——画布 #f6f8fa、发丝边框、6px 盒角、
+               深色顶栏 #24292f、下划线 tab、Actions 深色控制台；品牌色只保留蛋黄 mark 徽标。
+  一致性     : 容器 6px 圆角 + 徽标/pill 2em 全圆角，两种圆角各司其职，全局不混入第三种。
+  图标系统   : 全部来自官方 Octicons（primer/octicons，MIT），fill:currentColor 随文字变色；
+               不手绘 SVG 图标（§9.E），状态圆点是语义色块不算图标。
+  文案纪律   : 可见文本零 em/en 破折号（§9.G）；间隔点每行至多 1 个（§9.F）。
+  动效强度   : MOTION 2 —— 仅悬浮反馈 + 两处状态过渡（进度条/折叠），并尊重 prefers-reduced-motion。
+  主题       : 仅浅色（用户指定）；日志控制台 #0d1117 是 Actions 语义，不是暗色主题。
+  ================================================================================================
+-->
+<style>
+  /* ================= GitHub Primer 风格令牌 ================= */
+  :root{
+    --canvas:#f6f8fa;          /* 页面底 */
+    --fg:#1f2328;              /* 主文字 */
+    --fg-2:#59636e;            /* 次级文字 */
+    --fg-3:#818b98;            /* 弱文字 */
+    --border:#d1d9e0;          /* 主边框 */
+    --border-soft:rgba(31,35,40,.15);
+    --muted:#f6f8fa;           /* 盒头/悬浮底 */
+    --link:#0969da;            /* 链接蓝 */
+    --success:#1a7f37;         /* 成功 / 主按钮 */
+    --success-btn:#1f883d;
+    --attention:#9a6700;       /* 警示黄 */
+    --danger:#cf222e;          /* 危险红 */
+    --open:#1a7f37;
+    --closed:#cf222e;
+    --dark:#24292f;            /* 经典深色顶栏 */
+    --dark-fg:#f0f3f6;
+    --dark-border:#424a53;
+    --console:#0d1117;         /* Actions 日志底 */
+    --console-ink:#e6edf3;
+    --r:6px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  /* 显式 display 的元素(.pv 等)会让 hidden 属性失效，必须全局兜底 */
+  [hidden]{display:none!important}
+  html,body{height:100%}
+  body{
+    background:var(--canvas);
+    color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans","PingFang SC","Microsoft YaHei UI","Microsoft YaHei",Helvetica,Arial,sans-serif;
+    font-size:14px; line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+    display:flex; flex-direction:column;
+    user-select:none;
+    overflow-y:auto; overflow-x:hidden;
+  }
+  body::-webkit-scrollbar{width:10px}
+  body::-webkit-scrollbar-track{background:transparent}
+  body::-webkit-scrollbar-thumb{background:#c9d1dc;border-radius:5px;border:2px solid var(--canvas)}
+  body::-webkit-scrollbar-thumb:hover{background:#a8b3c1}
+  .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+  .mono{font-family:ui-monospace,"Cascadia Mono","SF Mono",Consolas,monospace}
+
+  /* ================= 深色顶栏（经典 GitHub header） ================= */
+  .gh-top{
+    flex:0 0 auto;
+    background:var(--dark); color:var(--dark-fg);
+    display:flex; align-items:center; gap:10px;
+    padding:10px 24px;
+  }
+  .gh-top img{width:24px;height:24px;object-fit:contain}
+  .gh-top .crumb{font-size:15px;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gh-top .crumb .dim{color:#9ea7b3}
+  .gh-top .crumb b{font-weight:700;color:#fff}
+  .gh-top .right{margin-left:auto;display:flex;align-items:center;gap:8px}
+  .gh-pill{
+    font-size:11px;font-weight:500;color:#b7c0cb;
+    border:1px solid var(--dark-border);border-radius:2em;padding:2px 10px;
+    white-space:nowrap;
+  }
+  .gh-pill.mode{color:#7ee2b8;border-color:#2ea86b}
+
+  /* ================= 下划线导航 tab ================= */
+  .navtabs{
+    flex:0 0 auto;
+    display:flex; align-items:center; gap:4px;
+    background:#fff; border-bottom:1px solid var(--border);
+    padding:0 24px;
+  }
+  .navtab{
+    font-size:14px; color:var(--fg-2); cursor:pointer;
+    padding:11px 6px 9px; margin-right:10px;
+    border-bottom:2px solid transparent;
+    transition:color .15s,border-color .15s;
+  }
+  .navtab:hover{color:var(--fg);border-color:rgba(31,35,40,.2)}
+  .navtab.on{color:var(--fg);font-weight:600;border-color:#fd8c73}
+  .navtabs .spacer{margin-left:auto;font-size:12px;color:var(--fg-3)}
+
+  main{flex:1 1 auto; padding:14px 24px 7px; display:flex; flex-direction:column}
+
+  /* ================= 统计行（repo 计数器风格） ================= */
+  .statline{
+    display:flex; align-items:stretch;
+    background:#fff; border:1px solid var(--border); border-radius:var(--r);
+    margin-bottom:14px;
+  }
+  .stat{flex:1; padding:10px 14px; position:relative; min-width:0}
+  .stat + .stat::before{content:"";position:absolute;left:0;top:18%;bottom:18%;width:1px;background:var(--border)}
+  .stat .row1{display:flex;align-items:baseline;gap:7px}
+  .stat .v{font-size:19px;font-weight:600;letter-spacing:-.2px;line-height:1.2}
+  .stat .v.ok{color:var(--success)} .stat .v.warn{color:var(--attention)} .stat .v.err{color:var(--danger)}
+  .stat .v.yolk{color:var(--link)}
+  .stat .k{font-size:12px;color:var(--fg-2)}
+  .stat .sub{font-size:11.5px;color:var(--fg-3);margin-top:1px}
+
+  .cols{display:flex; gap:14px; align-items:stretch}
+  .colmain{flex:1 1 auto; min-width:0}
+  /* 包裹层也要撑满列高，引擎卡片才能伸到与右栏齐平（box-ft 沉底） */
+  .colmain #cards{height:100%; display:flex; flex-direction:column}
+  .colmain #cards .box{flex:1}
+  .colside{flex:0 0 320px; display:flex; flex-direction:column; gap:14px}
+
+  /* 窗口可缩放：内容宽 ≤900px 时双栏折叠为单列，侧栏顺到引擎卡片下方 */
+  @media (max-width: 900px){
+    .cols{flex-direction:column}
+    .colmain #cards{height:auto}
+    .colmain #cards .box{flex:0 0 auto}
+    .colside{flex:0 0 auto; width:100%}
+  }
+
+  /* ================= Box（GitHub 盒组件） ================= */
+  .box{background:#fff;border:1px solid var(--border);border-radius:var(--r);margin-bottom:14px}
+  .colmain .box{margin-bottom:0;height:100%;display:flex;flex-direction:column}
+  .box-hd{
+    display:flex; align-items:center; gap:8px;
+    background:var(--muted); border-bottom:1px solid var(--border);
+    border-radius:var(--r) var(--r) 0 0;
+    padding:10px 16px; font-weight:600; font-size:14px;
+  }
+  .box-hd .hd-right{margin-left:auto;font-size:12px;font-weight:400;color:var(--fg-3);text-align:right;line-height:1.4}
+  .box-bd{padding:14px 16px}
+  .box-ft{
+    display:flex; gap:8px; flex-wrap:wrap;
+    background:var(--muted); border-top:1px solid var(--border);
+    border-radius:0 0 var(--r) var(--r);
+    padding:10px 16px;
+    margin-top:auto;
+  }
+  .box-ft button{flex:1}
+
+  /* 状态徽章（State pill：Open/Closed 同款） */
+  .state{
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:12px; font-weight:500; color:#fff;
+    border-radius:2em; padding:3px 12px;
+  }
+  .state::before{content:"";width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.9)}
+  .state.ok{background:var(--open)} .state.warn{background:var(--attention)} .state.err{background:var(--closed)}
+
+  .mark{
+    width:22px;height:22px;flex:0 0 22px;border-radius:6px;
+    background:linear-gradient(140deg,#fbbf24,#f59e0b);
+    display:flex;align-items:center;justify-content:center;
+    font-size:8.5px;font-weight:800;color:#fff;letter-spacing:.3px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.5);
+  }
+  .nm{font-weight:600;font-size:14px}
+  .tech{margin-left:auto;font-size:12px;color:var(--fg-3)}
+
+  /* 指标三列：发丝线分隔，扁平 */
+  .metrics{display:grid;grid-template-columns:repeat(3,1fr)}
+  .metric{padding:6px 14px 4px}
+  .metric + .metric{border-left:1px solid var(--border)}
+  .metric .mk{font-size:12px;color:var(--fg-2)}
+  .metric .mv{font-size:16px;font-weight:600;margin-top:2px}
+  .bar{height:6px;border-radius:6px;background:#eff2f5;margin-top:7px;overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:6px;transition:width .5s cubic-bezier(.4,0,.2,1)}
+  .bar i.ok{background:var(--success)}
+  .bar i.yolk{background:#bf8700}
+
+  /* 账号明细：文件列表风格 */
+  .accts{border-top:1px solid var(--border)}
+  .accthd{
+    display:flex; align-items:center; gap:8px; cursor:pointer;
+    padding:8px 16px; font-size:13px; font-weight:600; color:var(--fg-2);
+    transition:background .12s;
+  }
+  .accthd:hover{background:var(--muted);color:var(--fg)}
+  .accthd .caret{
+    display:inline-flex;align-items:center;
+    transition:transform .2s;
+  }
+  .accthd .caret .octicon{width:12px;height:12px;fill:var(--fg-3)}
+  .accthd.open .caret{transform:rotate(180deg)}
+  .accthd .cnt{margin-left:auto;color:var(--fg-3);font-weight:400;font-size:12px}
+  .alist{display:grid;grid-template-rows:0fr;overflow:hidden;transition:grid-template-rows .26s ease}
+  .alist.open{grid-template-rows:1fr}
+  .alist-in{min-height:0;overflow:hidden}
+  .acct{
+    display:flex;align-items:center;gap:8px;
+    padding:8px 16px;font-size:13px;border-top:1px solid var(--border);
+    transition:background .12s;
+  }
+  .acct:hover{background:var(--muted)}
+  .acct .sdot{width:7px;height:7px;border-radius:50%;flex:0 0 7px}
+  .acct .an{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+  .acct .ac{font-weight:600;color:var(--fg)}
+  .acct .ac.dim{color:var(--fg-3);font-weight:400}
+  .label{
+    font-size:11px;font-weight:500;padding:1px 8px;border-radius:2em;
+    border:1px solid var(--border);color:var(--fg-2);background:#fff;flex:0 0 auto;
+  }
+  .label.cn{color:var(--link);border-color:#54aeff66;background:#ddf4ff}
+  .label.bad{color:var(--danger);border-color:#ff818266;background:#ffebe9}
+  .empty{font-size:12.5px;color:var(--fg-3);padding:10px 16px;text-align:center;border-top:1px solid var(--border)}
+
+  /* 健康度分段条：绿/黄/红占比，贡献图配色 */
+  .poolbar{display:flex;height:8px;border-radius:6px;overflow:hidden;background:#eff2f5;margin-top:12px}
+  .pb-seg{transition:width .5s cubic-bezier(.4,0,.2,1)}
+  .pb-seg.s-ok{background:var(--success)}
+  .pb-seg.s-warn{background:var(--attention)}
+  .pb-seg.s-bad{background:var(--danger)}
+  .pblegend{font-size:11.5px;color:var(--fg-3);margin-top:5px}
+
+  .btns{display:flex;gap:8px;flex-wrap:wrap}
+  .btns button{flex:1;min-width:60px}
+
+  /* ================= 按钮（Primer button） ================= */
+  button{
+    font-family:inherit;font-size:14px;font-weight:500;color:var(--fg);
+    background:var(--muted);border:1px solid var(--border-soft);
+    border-radius:var(--r);padding:5.5px 14px;cursor:pointer;
+    transition:background .15s,border-color .15s,box-shadow .15s;
+    white-space:nowrap;
+    box-shadow:0 1px 0 rgba(31,35,40,.04);
+    display:inline-flex;align-items:center;justify-content:center;gap:5px;
+  }
+  /* 图标：一律官方 Octicons，fill:currentColor 随按钮文字变色（绿钮白字即白图标） */
+  button .octicon{width:13px;height:13px;flex:0 0 13px;fill:currentColor;opacity:.9}
+  .pv-back .octicon{width:13px;height:13px;fill:currentColor}
+  button:hover:not(:disabled){background:#f3f4f6;border-color:rgba(31,35,40,.25)}
+  button:active:not(:disabled){background:#eef1f4;box-shadow:inset 0 1px 0 rgba(31,35,40,.08)}
+  button:disabled{
+    background:#eff2f5;color:var(--fg-3);border-color:rgba(31,35,40,.1);
+    cursor:not-allowed;box-shadow:none;
+  }
+  button.pri{
+    background:var(--success-btn);color:#fff;font-weight:500;
+    border:1px solid rgba(31,35,40,.15);
+    box-shadow:0 1px 0 rgba(31,35,40,.1);
+  }
+  button.pri:hover:not(:disabled){background:var(--success)}
+  button.pri:disabled{background:#eff2f5;color:var(--fg-3)}
+  button.dgr{color:var(--danger)}
+  button.dgr:hover:not(:disabled){background:var(--danger);color:#fff;border-color:rgba(31,35,40,.15)}
+  .ghost{color:var(--link)}
+  .ghost:hover:not(:disabled){color:#fff;background:var(--link);border-color:rgba(31,35,40,.15)}
+  .ghost:disabled{color:var(--fg-3);background:#eff2f5}
+  button:focus-visible,.accthd:focus-visible,.navtab:focus-visible{outline:2px solid var(--link);outline-offset:1px;border-radius:4px}
+
+  .sidebtns{display:flex;flex-direction:column;gap:8px}
+  .sidebtns button{width:100%;padding:7px 14px;text-align:center;justify-content:center}
+
+  /* 自启行 */
+  .autorow{display:flex;align-items:center;gap:10px}
+  .autorow .lb{font-size:14px;font-weight:600;line-height:1.4}
+  .autorow .sb{font-size:12px;color:var(--fg-3);margin-top:1px}
+  .toggle{
+    margin-left:auto;width:40px;height:22px;border-radius:2em;
+    background:#afb8c133;border:1px solid var(--border-soft);
+    position:relative;cursor:pointer;transition:background .2s;flex:0 0 40px;
+  }
+  .toggle::after{
+    content:"";position:absolute;top:1px;left:1px;
+    width:18px;height:18px;border-radius:50%;background:#fff;
+    box-shadow:0 1px 3px rgba(31,35,40,.3);
+    transition:left .2s;
+  }
+  .toggle.on{background:var(--success-btn);border-color:rgba(31,35,40,.15)}
+  .toggle.on::after{left:19px}
+
+  /* About 盒：键值行 */
+  .aboutrow{display:flex;align-items:center;gap:8px;padding:6.5px 16px;font-size:12.5px;border-top:1px solid var(--border)}
+  .aboutrow:first-child{border-top:0}
+  .aboutrow .ak{color:var(--fg-3);flex:0 0 66px}
+  .aboutrow .av{color:var(--fg);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* ================= 日志页：Actions 控制台 ================= */
+  .logbox{display:flex;flex-direction:column;flex:1;width:100%}
+  .seg{display:flex;gap:2px}
+  .seg .tab{
+    font-size:13px;font-weight:500;color:var(--fg-2);cursor:pointer;
+    padding:4px 10px;border-radius:var(--r);
+    transition:color .14s,background .14s;
+  }
+  .seg .tab:hover{color:var(--fg);background:#eaeef2}
+  .seg .tab.on{color:var(--fg);font-weight:600;background:#e2e7ec}
+  pre{
+    flex:1 1 auto; min-height:380px;
+    font-family:ui-monospace,"Cascadia Mono","SF Mono",Consolas,monospace;
+    font-size:12px;line-height:1.65;color:var(--console-ink);
+    background:var(--console);
+    border-top:1px solid var(--border);
+    border-radius:0 0 var(--r) var(--r);
+    padding:12px 16px;
+    white-space:pre-wrap;word-break:break-all;
+    overflow-y:auto;user-select:text;
+  }
+  pre::-webkit-scrollbar{width:8px}
+  pre::-webkit-scrollbar-track{background:rgba(255,255,255,.04)}
+  pre::-webkit-scrollbar-thumb{background:#30363d;border-radius:4px}
+  /* Actions 日志着色 */
+  pre .ln-hd{color:#79c0ff;font-weight:600}
+  pre .ln-bad{color:#ffa198}
+  pre .ln-ok{color:#7ee2b8}
+  pre .ln-ts{color:#8b949e}
+
+  /* 页脚 */
+  .links{
+    flex:0 0 auto;
+    display:flex;justify-content:center;align-items:center;
+    gap:16px;padding:2px 0 4px;font-size:12px;
+  }
+  .links a{color:var(--fg-3);cursor:pointer;transition:color .15s}
+  .links a:hover{color:var(--link)}
+  .foot{
+    flex:0 0 auto;text-align:center;font-size:11.5px;color:var(--fg-3);
+    padding:0 0 6px;letter-spacing:.2px;
+  }
+
+  .toast{
+    position:fixed;left:50%;bottom:16px;transform:translate(-50%,14px);
+    background:var(--dark);color:#fff;border:1px solid var(--dark-border);
+    padding:8px 16px;border-radius:var(--r);font-size:13px;
+    opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;z-index:9;
+    box-shadow:0 8px 24px rgba(31,35,40,.35);
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+
+  /* ================= 窗口内管理面板 ================= */
+  /* 面板经本程序反向代理镜像到同源，iframe 全屏承载——不跳浏览器。
+     登录态/主题由宿主页预置；窗口可缩放，面板 zoom 按内容区宽度动态计算。 */
+  .pv{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;background:var(--canvas)}
+  .pv-bar{
+    display:flex;align-items:center;gap:10px;flex:0 0 auto;
+    background:#fff;border-bottom:1px solid var(--border);
+    padding:8px 16px;
+  }
+  .pv-back{display:flex;align-items:center;gap:6px;font-weight:500;padding:4.5px 12px}
+  .pv-back svg{width:13px;height:13px}
+  .pv-tt{display:flex;align-items:baseline;gap:8px;min-width:0}
+  .pv-name{font-size:14px;font-weight:600}
+  .pv-hint{font-size:12px;color:var(--fg-3)}
+  .pv-acts{margin-left:auto;display:flex;gap:8px}
+  .pv-acts button{padding:4.5px 12px;font-size:13px}
+  .pv-stage{flex:1;position:relative;min-height:0}
+  .pv-stage iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}
+  .pv-mask{
+    position:absolute;inset:0;display:flex;flex-direction:column;gap:12px;
+    align-items:center;justify-content:center;
+    color:var(--fg-2);font-size:13px;background:var(--canvas);
+  }
+  .pv-spin{
+    width:24px;height:24px;border-radius:50%;
+    border:3px solid #d1d9e0;border-top-color:var(--link);
+    animation:spin .8s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* taste-skill §10.4：系统开启「减少动态效果」时，所有动画/过渡一律关闭 */
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{animation:none!important;transition:none!important}
+  }
+</style>
+</head>
+<body>
+
+  <header class="gh-top">
+    <img src="egg.png" alt="" />
+    <span class="crumb"><span class="dim">AGIEGG</span> <span class="dim">/</span> <b>账号池启动器</b></span>
+    <div class="right">
+      <span class="gh-pill" id="badgeMode">原生窗口</span>
+      <span class="gh-pill" id="badgeVer">v1.0.0</span>
+    </div>
+  </header>
+
+  <nav class="navtabs">
+    <span class="navtab on" data-view="overview">概览</span>
+    <span class="navtab" data-view="logs">引擎日志</span>
+    <span class="spacer" id="navHint">自动签到 · 自动任务由引擎内置调度执行</span>
+  </nav>
+
+  <main>
+    <!-- ============ 概览 ============ -->
+    <section id="viewOverview" style="flex:1 0 auto">
+      <div class="statline">
+        <div class="stat">
+          <div class="row1"><span class="v" id="sEngine">-</span><span class="k">引擎</span></div>
+          <div class="sub" id="sEngineSub">读取状态中</div>
+        </div>
+        <div class="stat">
+          <div class="row1"><span class="v num" id="sAcct">-</span><span class="k">账号</span></div>
+          <div class="sub" id="sAcctSub">-</div>
+        </div>
+        <div class="stat">
+          <div class="row1"><span class="v num" id="sHealth">-</span><span class="k">健康</span></div>
+          <div class="sub" id="sHealthSub">-</div>
+        </div>
+        <div class="stat">
+          <div class="row1"><span class="v num yolk" id="sCredit">-</span><span class="k">剩余积分</span></div>
+          <div class="sub" id="sCreditSub">-</div>
+        </div>
+      </div>
+
+      <div class="cols">
+        <div class="colmain"><div id="cards"></div></div>
+
+        <div class="colside">
+          <div class="box">
+            <div class="box-hd">快捷操作</div>
+            <div class="box-bd sidebtns">
+              <button class="pri" id="bSign"><svg class="octicon" viewBox="0 0 16 16" aria-hidden="true"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm1.5 0a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm10.28-1.72-4.5 4.5a.75.75 0 0 1-1.06 0l-2-2a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l1.47 1.47 3.97-3.97a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042Z"/></svg>一键签到</button>
+              <button id="bCred"><svg class="octicon" viewBox="0 0 16 16" aria-hidden="true"><path d="M10.75 9a.75.75 0 0 0 0 1.5h1.5a.75.75 0 0 0 0-1.5h-1.5Z"/><path d="M0 3.75C0 2.784.784 2 1.75 2h12.5c.966 0 1.75.784 1.75 1.75v8.5A1.75 1.75 0 0 1 14.25 14H1.75A1.75 1.75 0 0 1 0 12.25ZM14.5 6.5h-13v5.75c0 .138.112.25.25.25h12.5a.25.25 0 0 0 .25-.25Zm0-2.75a.25.25 0 0 0-.25-.25H1.75a.25.25 0 0 0-.25.25V5h13Z"/></svg>积分查询</button>
+              <button id="bRestartAll"><svg class="octicon" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z"/></svg>重启引擎</button>
+            </div>
+          </div>
+
+          <div class="box">
+            <div class="box-hd">设置</div>
+            <div class="box-bd autorow">
+              <div>
+                <div class="lb">开机自启</div>
+                <div class="sb">开机后静默驻留托盘并自动拉起引擎</div>
+              </div>
+              <div class="toggle" id="tAuto"></div>
+            </div>
+          </div>
+
+          <div class="box">
+            <div class="box-hd">关于</div>
+            <div class="aboutrow"><span class="ak">引擎</span><span class="av">wb2api（WorkBuddy 池）</span></div>
+            <div class="aboutrow"><span class="ak">界面</span><span class="av mono" id="aboutUI">-</span></div>
+            <div class="aboutrow"><span class="ak">版本</span><span class="av" id="aboutVer">-</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 日志 ============ -->
+    <section id="viewLogs" hidden style="flex:1 1 auto; display:flex; flex-direction:column">
+      <div class="box logbox">
+        <div class="box-hd">
+          <div class="seg">
+            <span class="tab on" data-tab="out">运行输出</span>
+            <span class="tab" data-tab="eng">引擎日志</span>
+          </div>
+          <span class="hd-right">每 5 秒自动刷新</span>
+          <button id="bClear" style="margin-left:10px;padding:3px 10px;font-size:12px">清空</button>
+        </div>
+        <pre id="log">就绪。</pre>
+        <pre id="elog" style="display:none"></pre>
+      </div>
+    </section>
+  </main>
+
+  <div class="links">
+    <a id="bWebUI">浏览器打开本界面</a>
+    <a id="bFolder">打开账号目录</a>
+  </div>
+  <div class="foot" id="foot">关闭窗口会收起到系统托盘 · 托盘菜单可完全退出</div>
+
+  <!-- 窗口内管理面板：经本程序反代加载 wb2api 控制台，同源免跳浏览器 -->
+  <div class="pv" id="panelView" hidden>
+    <div class="pv-bar">
+      <button class="pv-back" id="pvBack">
+        <svg class="octicon" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.78 12.53a.75.75 0 0 1-1.06 0L2.47 8.28a.75.75 0 0 1 0-1.06l4.25-4.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L4.81 7h7.44a.75.75 0 0 1 0 1.5H4.81l2.97 2.97a.75.75 0 0 1 0 1.06Z"/></svg>返回
+      </button>
+      <div class="pv-tt">
+        <span class="pv-name" id="pvName">WorkBuddy 控制台</span>
+        <span class="pv-hint">内嵌视图，Esc 返回</span>
+      </div>
+      <div class="pv-acts">
+        <button id="pvReload">刷新</button>
+        <button id="pvExt" title="在系统默认浏览器打开面板">浏览器打开</button>
+      </div>
+    </div>
+    <div class="pv-stage">
+      <iframe id="pvFrame" title="WorkBuddy 控制台" allow="clipboard-read; clipboard-write"></iframe>
+      <div class="pv-mask" id="pvMask" hidden>
+        <div class="pv-spin"></div>
+        <div>面板加载中…</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+/* ================= 后端桥：Wails 绑定 / 内置 HTTP 二选一 ================= */
+/* 原生窗口用 Wails 的 JS 绑定；浏览器模式（或 WebView2 崩溃后用浏览器打开）
+   走 /api/call，两条通路的方法名与参数完全一致。 */
+let API = null;
+let MODE = null;                       // "wails" | "http"
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function detect(){
+  if (MODE) return MODE;
+  for (let i = 0; i < 8; i++){
+    if (window.go && window.go.main && window.go.main.App){ MODE = "wails"; return MODE; }
+    await sleep(60);
+  }
+  MODE = "http";
+  return MODE;
+}
+
+async function httpCall(method, args){
+  const r = await fetch("/api/call", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-AGIEGG": "1" },
+    body: JSON.stringify({ method, args })
+  });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error || "调用失败");
+  return j.result;
+}
+
+async function call(method, ...args){
+  if (await detect() === "wails"){
+    API = window.go.main.App;
+    if (typeof API[method] !== "function") throw new Error("缺少绑定方法: " + method);
+    return await API[method](...args);
+  }
+  return await httpCall(method, args);
+}
+
+/* ================= 提示 / 日志 ================= */
+const $ = id => document.getElementById(id);
+let toastT = null;
+function toast(msg){
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.classList.remove("show"), 2000);
+}
+function log(txt){
+  const p = $("log");
+  p.dataset.raw = (txt || "") + "\n";
+  p.textContent = p.dataset.raw;
+  paintLog(p);
+}
+function logAppend(txt){
+  const p = $("log");
+  p.dataset.raw = (p.dataset.raw || "") + "\n" + (txt || "") + "\n";
+  p.textContent = p.dataset.raw;
+  paintLog(p);
+}
+/* Actions 风格日志着色：节标题/错误/成功/时间戳分色（raw 存 dataset，纯展示层）。 */
+function paintLog(p){
+  const esc = escapeHtml(p.dataset.raw || "");
+  p.innerHTML = esc.split("\n").map(line => {
+    const t = line.trim();
+    if (/^===.*===$/.test(t)) return '<span class="ln-hd">' + line + '</span>';
+    if (/错误|失败|异常|forbidden|不可达/.test(t)) return '<span class="ln-bad">' + line + '</span>';
+    if (/成功|完成|已签|退出码 0/.test(t)) return '<span class="ln-ok">' + line + '</span>';
+    return line
+      .replace(/^(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2})/, '<span class="ln-ts">$1</span>')
+      .replace(/^(\[\d{2}:\d{2}:\d{2}\])/, '<span class="ln-ts">$1</span>');
+  }).join("\n");
+  p.scrollTop = p.scrollHeight;
+}
+$("bClear").onclick = () => { const p = $("log"); p.dataset.raw = ""; p.textContent = ""; };
+
+/* 顶部导航：概览 / 引擎日志 两个视图 */
+document.querySelectorAll(".navtab").forEach(t => {
+  t.onclick = () => {
+    document.querySelectorAll(".navtab").forEach(x => x.classList.toggle("on", x === t));
+    const v = t.dataset.view;
+    $("viewOverview").hidden = v !== "overview";
+    $("viewLogs").hidden = v !== "logs";
+  };
+});
+
+/* 日志页内双 tab：运行输出（本工具的操作结果）/ 引擎日志（引擎尾部输出）。 */
+let LOGTAB = "out";
+document.querySelectorAll(".seg .tab").forEach(t => {
+  t.onclick = () => {
+    LOGTAB = t.dataset.tab;
+    document.querySelectorAll(".seg .tab").forEach(x => x.classList.toggle("on", x === t));
+    $("log").style.display  = LOGTAB === "out" ? "" : "none";
+    $("elog").style.display = LOGTAB === "eng" ? "" : "none";
+  };
+});
+
+function renderEngineLog(s){
+  /* 只在内容真的变了才写 DOM，否则 5 秒一次轮询会把用户正在看的滚动位置顶回去。 */
+  const block = k => {
+    const st = s[k] || {};
+    const tail = (st.log_tail || "").trim();
+    return "=== " + (st.title || k) + " ===\n" + (tail || "（暂无日志）");
+  };
+  const next = block("wb");
+  const el = $("elog");
+  if (el.dataset.raw !== next){
+    el.dataset.raw = next;
+    el.textContent = next;
+    paintLog(el);
+  }
+}
+
+/* ================= 格式化 ================= */
+/* 未知值统一显示 "-"（taste-skill §9.G：可见文本不使用 em/en 破折号） */
+const nfmt = n => (n == null ? "-" : n.toLocaleString("zh-CN"));
+
+/* 账号副标题：显示国区/国际分布。 */
+function realmSummary(list){
+  if (!list || !list.length) return "-";
+  const cn = list.filter(a => a.realm === "cn").length;
+  return "国区 " + cn + " · 国际 " + (list.length - cn);
+}
+
+/* ================= 引擎卡片（Box） ================= */
+const ENGINES = [
+  { key:"wb", name:"WorkBuddy 账号池", short:"WB" }
+];
+const expandState = { wb:true };
+
+function buildCards(){
+  const box = $("cards");
+  box.innerHTML = "";
+  for (const e of ENGINES){
+    const d = document.createElement("div");
+    d.className = "box";
+    d.id = "card_" + e.key;
+    d.innerHTML = `
+      <div class="box-hd">
+        <span class="mark">${e.short}</span>
+        <span class="nm">${e.name}</span>
+        <span class="state" id="pill_${e.key}">检测中</span>
+        <span class="tech" id="tech_${e.key}">-</span>
+      </div>
+
+      <div class="box-bd" style="padding:12px 0">
+        <div class="metrics">
+          <div class="metric">
+            <div class="mk">账号总数</div>
+            <div class="mv num" id="mAcct_${e.key}">-</div>
+          </div>
+          <div class="metric">
+            <div class="mk">剩余积分</div>
+            <div class="mv num" id="mCred_${e.key}">-</div>
+            <div class="bar"><i class="yolk" id="barC_${e.key}" style="width:0%"></i></div>
+          </div>
+          <div class="metric">
+            <div class="mk">健康 / 冷却 / 禁用</div>
+            <div class="mv num" id="mHealth_${e.key}">-</div>
+            <div class="bar"><i class="ok" id="barH_${e.key}" style="width:0%"></i></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="padding:0 16px">
+        <div class="poolbar">
+          <div class="pb-seg s-ok"  id="pbOk_${e.key}"   style="width:0%"></div>
+          <div class="pb-seg s-warn" id="pbWarn_${e.key}" style="width:0%"></div>
+          <div class="pb-seg s-bad"  id="pbBad_${e.key}"  style="width:0%"></div>
+        </div>
+        <div class="pblegend" id="pbleg_${e.key}">-</div>
+      </div>
+
+      <div class="accts">
+        <div class="accthd ${expandState[e.key] ? "open" : ""}" data-toggle="${e.key}">
+          <span class="caret"><svg class="octicon" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.427 7.427 3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z"/></svg></span><span>账号明细</span>
+          <span class="cnt" id="cnt_${e.key}"></span>
+        </div>
+        <div class="alist ${expandState[e.key] ? "open" : ""}" id="alist_${e.key}">
+          <div class="alist-in" id="alistin_${e.key}"></div>
+        </div>
+      </div>
+
+      <div class="box-ft">
+        <button class="pri" data-act="start" data-k="${e.key}"><svg class="octicon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm4.879-2.773 4.264 2.559a.25.25 0 0 1 0 .428l-4.264 2.559A.25.25 0 0 1 6 10.559V5.442a.25.25 0 0 1 .379-.215Z"/></svg>启动</button>
+        <button class="dgr" data-act="stop" data-k="${e.key}"><svg class="octicon" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 5.75C4 4.784 4.784 4 5.75 4h4.5c.966 0 1.75.784 1.75 1.75v4.5A1.75 1.75 0 0 1 10.25 12h-4.5A1.75 1.75 0 0 1 4 10.25Zm1.75-.25a.25.25 0 0 0-.25.25v4.5c0 .138.112.25.25.25h4.5a.25.25 0 0 0 .25-.25v-4.5a.25.25 0 0 0-.25-.25Z"/></svg>停止</button>
+        <button data-act="restart" data-k="${e.key}"><svg class="octicon" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z"/></svg>重启</button>
+        <button data-act="signin" data-k="${e.key}"><svg class="octicon" viewBox="0 0 16 16" aria-hidden="true"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm1.5 0a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm10.28-1.72-4.5 4.5a.75.75 0 0 1-1.06 0l-2-2a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l1.47 1.47 3.97-3.97a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042Z"/></svg>签到</button>
+        <button class="ghost" data-act="panel" data-k="${e.key}"><svg class="octicon" viewBox="0 0 16 16" aria-hidden="true"><path d="M0 2.75C0 1.784.784 1 1.75 1h12.5c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15H1.75A1.75 1.75 0 0 1 0 13.25ZM14.5 6h-13v7.25c0 .138.112.25.25.25h12.5a.25.25 0 0 0 .25-.25Zm-6-3.5v2h6V2.75a.25.25 0 0 0-.25-.25ZM5 2.5v2h2v-2Zm-3.25 0a.25.25 0 0 0-.25.25V4.5h2v-2Z"/></svg>管理面板</button>
+      </div>
+    `;
+    box.appendChild(d);
+  }
+  box.querySelectorAll("button[data-act]").forEach(b => {
+    b.onclick = () => onAct(b.dataset.act, b.dataset.k);
+  });
+  box.querySelectorAll(".accthd").forEach(h => {
+    h.onclick = () => {
+      const k = h.dataset.toggle;
+      expandState[k] = !expandState[k];
+      h.classList.toggle("open", expandState[k]);
+      $("alist_" + k).classList.toggle("open", expandState[k]);
+    };
+  });
+}
+
+function renderAccounts(key, list){
+  const box = $("alistin_" + key);
+  const cnt = $("cnt_" + key);
+  if (!list || !list.length){
+    cnt.textContent = "无";
+    box.innerHTML = `<div class="empty">该引擎未上报账号</div>`;
+    return;
+  }
+  cnt.textContent = list.length + " 个";
+  box.innerHTML = list.map(a => {
+    let color, tag = "";
+    if (a.disabled){ color = "var(--danger)"; tag = `<span class="label bad">禁用</span>`; }
+    else if (a.cooling){ color = "var(--attention)"; tag = `<span class="label bad">冷却</span>`; }
+    else { color = "var(--success)"; }
+
+    const cap = a.credit_cap > 0
+      ? ` <span style="color:var(--fg-3);font-weight:400">/ ${nfmt(a.credit_cap)}</span>`
+      : "";
+    const realm = a.realm
+      ? `<span class="label ${a.realm === "cn" ? "cn" : ""}">${a.realm === "cn" ? "国区" : "国际"}</span>`
+      : "";
+    const exp = a.expiring > 0
+      ? `<span class="label" title="最早 ${(a.expiry || "").slice(0,10)}">${nfmt(a.expiring)} 待过期</span>`
+      : "";
+    /* 额度未知（引擎未上报）与「真的有 0 分」是两件事，未知显示「-」更诚实。 */
+    const unknown = (a.credit_cap === 0 && a.credits === 0);
+    const val = unknown ? "-" : nfmt(a.credits) + cap;
+    return `<div class="acct">
+      <span class="sdot" style="background:${color}"></span>
+      <span class="an" title="${a.uid || ""}">${escapeHtml(a.nickname || "未命名")}</span>
+      ${realm}${exp}${tag}
+      <span class="ac num${unknown ? " dim" : ""}">${val}</span>
+    </div>`;
+  }).join("");
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+}
+
+function render(s){
+  $("badgeVer").textContent = "v" + (s.version || "1.0.0");
+  const bm = $("badgeMode");
+  if (s.web_mode){ bm.textContent = "浏览器模式"; bm.className = "gh-pill"; }
+  else { bm.textContent = "原生窗口"; bm.className = "gh-pill mode"; }
+  $("aboutVer").textContent = "AGIEGG v" + (s.version || "1.0.0");
+  $("aboutUI").textContent = (s.ui_url || "-").replace("http://", "");
+  $("navHint").textContent = s.all_running
+    ? "引擎运行中 · 自动任务由引擎内置调度执行"
+    : "引擎未运行";
+
+  /* 统计行 */
+  $("sEngine").textContent  = s.all_running ? "运行中" : "已停止";
+  $("sEngine").className    = "v " + (s.all_running ? "ok" : "err");
+  $("sEngineSub").textContent = s.uptime ? "已运行 " + s.uptime : "尚未运行";
+
+  $("sAcct").textContent = s.all_accounts || 0;
+  $("sAcct").className   = "v num " + (s.all_accounts ? "" : "err");
+  $("sAcctSub").textContent = realmSummary(s.wb && s.wb.account_list);
+
+  const healthPct = s.all_accounts ? Math.round((s.all_healthy || 0) * 100 / s.all_accounts) : 0;
+  $("sHealth").textContent = (s.all_healthy || 0) + " / " + (s.all_accounts || 0);
+  $("sHealth").className   = "v num " + (healthPct >= 80 ? "ok" : healthPct >= 50 ? "warn" : "err");
+  $("sHealthSub").textContent = s.all_accounts ? healthPct + "% 可用" : "暂无账号";
+
+  const cap = s.all_credit_cap || 0;
+  $("sCredit").textContent = cap ? nfmt(s.all_credits) : (s.all_credits ? nfmt(s.all_credits) : "-");
+  $("sCreditSub").textContent = cap ? "共 " + nfmt(cap) + " · " + Math.round(s.all_credits * 100 / cap) + "%" : "引擎未上报额度";
+
+  /* 引擎 Box */
+  for (const e of ENGINES){
+    const st = s[e.key];
+    if (!st) continue;
+    const pill = $("pill_" + e.key);
+    const tech = $("tech_" + e.key);
+
+    let cls, label;
+    if (st.online){ cls = "ok"; label = "运行中"; }
+    else if (st.running){ cls = "warn"; label = "启动中"; }
+    else { cls = "err"; label = "已停止"; }
+
+    pill.className = "state " + cls;
+    pill.textContent = st.err && !st.online && st.running ? "接口异常" : label;
+
+    /* 元信息行（taste-skill §9.F：间隔点每行至多 1 个——端口与进程并成一段） */
+    let techTxt;
+    if (!st.running){
+      techTxt = st.port ? ":" + st.port : "未运行";
+    } else {
+      const who = st.pid ? "pid " + st.pid : "外部实例";
+      techTxt = st.port ? ":" + st.port + "（" + who + "）" : who;
+      if (st.uptime) techTxt += " · " + st.uptime;
+    }
+    tech.textContent = techTxt;
+
+    /* 指标 */
+    $("mAcct_" + e.key).textContent   = st.accounts || 0;
+    $("mHealth_" + e.key).textContent = (st.healthy || 0) + " / " + (st.cooling || 0) + " / " + (st.disabled || 0);
+    const known = st.credits_known;
+    $("mCred_" + e.key).textContent = known
+      ? nfmt(st.credits) + (st.credit_cap ? " / " + nfmt(st.credit_cap) : "")
+      : (st.credits ? nfmt(st.credits) : "-");
+    $("barC_" + e.key).style.width = known ? (st.credit_pct || 0) + "%" : "0%";
+    $("barH_" + e.key).style.width = (st.healthy_pct || 0) + "%";
+
+    /* 健康度分段条 */
+    const tot = st.total || st.accounts || 0;
+    const nOk = st.healthy || 0, nWn = st.cooling || 0, nBd = st.disabled || 0;
+    const pct = n => tot ? Math.round(n * 100 / tot) : 0;
+    $("pbOk_" + e.key).style.width   = tot ? pct(nOk) + "%" : "0%";
+    $("pbWarn_" + e.key).style.width = tot ? pct(nWn) + "%" : "0%";
+    $("pbBad_" + e.key).style.width  = tot ? pct(nBd) + "%" : "0%";
+    $("pbleg_" + e.key).textContent = tot
+      ? "健康 " + nOk + " / 冷却 " + nWn + " / 禁用 " + nBd + "（共 " + tot + " 个账号）"
+      : "引擎未上报账号数据";
+
+    renderAccounts(e.key, st.account_list);
+
+    /* 按钮可用性 */
+    const card = $("card_" + e.key);
+    card.querySelectorAll("button[data-act]").forEach(b => {
+      const a = b.dataset.act;
+      if (a === "start")       b.disabled = !!st.running;
+      else if (a === "stop")   b.disabled = !st.running;
+      else if (a === "panel"){
+        b.disabled = !st.panel_ok;
+        b.title = st.panel_ok ? "在窗口内打开管理面板" : "该引擎没有内置面板，请用「账号明细」查看";
+      }
+      else b.disabled = !st.running;
+    });
+  }
+
+  $("tAuto").classList.toggle("on", !!s.autostart);
+
+  /* 页脚：至多两段（备用界面地址已收进「关于」盒，避免一行三个间隔点） */
+  const parts = [];
+  if (s.started_at) parts.push("本次启动 " + s.started_at);
+  if (!s.web_mode) parts.push("关闭窗口收起到托盘");
+  $("foot").textContent = parts.join(" · ");
+
+  renderEngineLog(s);
+}
+
+/* ================= 轮询 ================= */
+let busy = false;
+async function refresh(){
+  try { render(await call("Status")); }
+  catch (err) { log("状态获取失败: " + err.message); }
+}
+
+async function onAct(act, key){
+  if (busy) return;
+  busy = true;
+  const label = { start:"启动", stop:"停止", restart:"重启", signin:"签到", panel:"打开面板" }[act] || act;
+  try {
+    if (act === "panel"){
+      await showPanel();
+    } else if (act === "signin"){
+      toast("正在签到…");
+      const out = await call("Signin", key);
+      log("=== " + key + " 签到 ===\n" + out);
+      toast("签到完成");
+      await refresh();
+    } else {
+      await call(act === "start" ? "Start" : act === "stop" ? "Stop" : "Restart", key);
+      toast(label + "完成");
+      await sleep(700);
+      await refresh();
+    }
+  } catch (err) {
+    toast(label + "失败：" + err.message);
+    logAppend("[错误] " + label + ": " + err.message);
+    await refresh();
+  } finally {
+    busy = false;
+  }
+}
+
+/* ================= 快捷操作 ================= */
+$("bSign").onclick = async () => {
+  if (busy) return; busy = true;
+  try {
+    toast("正在签到全部账号…");
+    log("=== 全部签到 ===\n" + await call("SigninAll"));
+    toast("全部签到完成");
+    await refresh();
+  } catch (err){ toast("签到失败"); logAppend("[错误] " + err.message); }
+  finally { busy = false; }
+};
+
+$("bCred").onclick = async () => {
+  if (busy) return; busy = true;
+  try {
+    toast("正在查询积分…");
+    log("=== 积分 ===\n" + await call("Credits", "all"));
+    toast("查询完成");
+    await refresh();
+  } catch (err){ toast("查询失败"); logAppend("[错误] " + err.message); }
+  finally { busy = false; }
+};
+
+$("bRestartAll").onclick = async () => {
+  if (busy) return; busy = true;
+  try {
+    toast("正在重启…");
+    await call("Restart", "all");
+    await sleep(1100); await refresh();
+    toast("重启完成");
+  } catch (err){ toast("重启失败"); logAppend("[错误] " + err.message); }
+  finally { busy = false; }
+};
+
+$("tAuto").onclick = async () => {
+  const next = !$("tAuto").classList.contains("on");
+  try {
+    await call("SetAutostart", next);
+    $("tAuto").classList.toggle("on", next);
+    toast(next ? "已开启开机自启" : "已关闭开机自启");
+  } catch (err){ toast("设置失败"); logAppend("[错误] " + err.message); }
+};
+
+$("bWebUI").onclick = async () => {
+  try { await call("OpenWebUI"); toast("已在浏览器打开"); }
+  catch (err){ toast("打开失败：" + err.message); }
+};
+
+$("bFolder").onclick = async () => {
+  try { await call("OpenFolder"); }
+  catch (err){ toast("打开失败：" + err.message); }
+};
+
+/* ================= 窗口内管理面板 ================= */
+/* 不再跳浏览器：wb2api 控制台经本程序反代镜像到同一源，iframe 全屏承载。
+   面板把登录态存在自己 localStorage 的 wb2api.key（Authorization: Bearer），
+   宿主页与面板同源，预置该键后打开即是已登录状态；主题也预置为浅色。
+   窗口可缩放，面板 zoom 按内容区宽度动态计算（panelZoom）。 */
+let panelSeeded = false;
+let panelSrc = "/panel/";
+
+/* 面板 zoom 随窗口宽度动态计算：面板表格（.tbl-wrap）需要约 1287px 虚拟宽
+   才能完整放下操作列，故 zoom = 内容区宽 / 1287；宽窗封顶 1.0（不放大），
+   窄窗保底 0.7（再窄表格自己横向滚动，文字不至于小到没法看）。 */
+function panelZoom(){
+  const stage = document.querySelector(".pv-stage");
+  const w = (stage && stage.clientWidth) || 1184;
+  return Math.max(0.7, Math.min(1, w / 1287));
+}
+
+/* 面板换肤：引擎面板是 CSS 变量驱动的（[data-theme=light] 一组令牌）。
+   宿主页与面板同源，load 后注入一段覆盖样式，把配色/字体对齐启动器的
+   Primer 令牌（画布 #f6f8fa、边框 #d1d9e0、主色绿 #1f883d、文字灰阶），
+   两个界面看起来是一个产品。面板升级不改结构就无需动这里。 */
+function skinPanel(doc){
+  if (!doc || !doc.head || doc.getElementById("agiegg-skin")) return;
+  const st = doc.createElement("style");
+  st.id = "agiegg-skin";
+  st.textContent = `[data-theme="light"]{
+  --bg:#f6f8fa; --surface:#ffffff; --surface-2:#f6f8fa; --raise:#ffffff;
+  --line:#d1d9e0; --line-soft:#eaeef2;
+  --ink:#1f2328; --ink-2:#59636e; --ink-3:#818b98;
+  --accent:#1f883d; --accent-ink:#ffffff; --accent-soft:rgba(31,136,61,.10);
+  --ok:#1a7f37; --ok-soft:rgba(26,127,55,.10);
+  --warn:#9a6700; --warn-soft:rgba(154,103,0,.10);
+  --bad:#cf222e; --bad-soft:rgba(207,34,46,.10);
+  --shadow:0 1px 0 rgba(31,35,40,.04);
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans","PingFang SC","Microsoft YaHei UI","Microsoft YaHei",sans-serif;
+}
+/* 兜底：表格容器溢出时滚动而非硬裁（引擎以后加列也不会切掉按钮） */
+.tbl-wrap{overflow-x:auto}`;
+  doc.head.appendChild(st);
+}
+
+async function showPanel(){
+  let info;
+  try { info = await call("PanelInfo"); }
+  catch (err){ toast("面板信息获取失败：" + err.message); return; }
+  if (!panelSeeded){
+    try {
+      if (info.key) localStorage.setItem("wb2api.key", info.key);
+      localStorage.setItem("wb2api.theme", "light");
+    } catch (e){}
+    panelSeeded = true;
+  }
+  panelSrc = info.url || "/panel/";
+  $("pvName").textContent = info.name || "WorkBuddy 控制台";
+  $("pvMask").hidden = false;
+  $("panelView").hidden = false;
+  /* 先复位到 about:blank 再赋真实地址：重复打开时同地址不触发 load，遮罩会卡住 */
+  const fr = $("pvFrame");
+  fr.src = "about:blank";
+  requestAnimationFrame(() => { fr.src = panelSrc; });
+}
+function closePanel(){
+  $("panelView").hidden = true;
+  $("pvFrame").src = "about:blank";
+}
+$("pvBack").onclick = closePanel;
+$("pvReload").onclick = () => { $("pvMask").hidden = false; $("pvFrame").src = panelSrc; };
+$("pvExt").onclick = async () => {
+  try { await call("OpenPanel", "wb"); toast("已在浏览器打开面板"); }
+  catch (err){ toast(err.message); }
+};
+$("pvFrame").addEventListener("load", () => {
+  if (!$("panelView").hidden && $("pvFrame").src.indexOf("/panel/") !== -1){
+    /* 按当前内容区宽度决定面板缩放，同源所以可直接注入 */
+    try {
+      const doc = $("pvFrame").contentDocument;
+      if (doc && doc.documentElement){
+        doc.documentElement.style.zoom = panelZoom();
+        skinPanel(doc);
+      }
+    } catch (e){}
+    $("pvMask").hidden = true;
+  }
+});
+/* 窗口缩放时同步面板 zoom（rAF 合帧，避免拖拽边框时高频抖动） */
+let zoomRaf = 0;
+window.addEventListener("resize", () => {
+  if ($("panelView").hidden) return;
+  cancelAnimationFrame(zoomRaf);
+  zoomRaf = requestAnimationFrame(() => {
+    try {
+      const doc = $("pvFrame").contentDocument;
+      if (doc && doc.documentElement) doc.documentElement.style.zoom = panelZoom();
+    } catch (e){}
+  });
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && !$("panelView").hidden) closePanel();
+});
+
+/* ================= 启动 ================= */
+buildCards();
+(async () => {
+  await refresh();
+  setInterval(refresh, 5000);
+})();
+</script>
+</body>
+</html>

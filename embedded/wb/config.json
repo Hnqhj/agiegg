@@ -1,0 +1,91 @@
+{
+  "api_key": "YOUR_WB2API_API_KEY",
+  "auth_dir": "./auths",
+  "cooldown": {
+    "soft_rate": "600s",
+    "soft_rate_max": "2h"
+  },
+  "features": {
+    "sanitize_blacklist_fingerprints": true
+  },
+  "global": {
+    "billing_base": "",
+    "chat_base": "",
+    "enabled": true
+  },
+  "listen": "127.0.0.1:7863",
+  "panel": {
+    "package_detail_limit": 5
+  },
+  "pool": {
+    "breaker_cooldown": "30m",
+    "breaker_cooldown_max": "6h",
+    "breaker_threshold": 3,
+    "cost_explore_interval": "30m",
+    "degrade_cooldown": "10m",
+    "degrade_cooldown_max": "2h",
+    "degrade_threshold": 5,
+    "expiring_soon": "168h",
+    "idle_weight_max": 5,
+    "idle_weight_per_hour": 0.5,
+    "max_in_flight": 3,
+    "max_in_flight_global": 2,
+    "prefer_expiring": true
+  },
+  "prompt": {
+    "file": "",
+    "mode": "passthrough"
+  },
+  "schedule": {
+    "activity_enabled": true,
+    "activity_hours": [
+      10
+    ],
+    "balance_refresh_enabled": true,
+    "balance_refresh_minutes": 5,
+    "blackcat_enabled": true,
+    "blackcat_hours": [
+      23
+    ],
+    "checkin_enabled": true,
+    "checkin_hours": [
+      9,
+      21
+    ],
+    "growth_enabled": true,
+    "growth_hours": [
+      1
+    ],
+    "keepalive_enabled": true,
+    "keepalive_hours": [
+      22
+    ],
+    "travel_enabled": true,
+    "travel_hours": [
+      9,
+      21
+    ]
+  },
+  "session_sticky": {
+    "enabled": true,
+    "gc_interval": "5m",
+    "ttl": "30m"
+  },
+  "state_file": "./data/state.json",
+  "upstash": {
+    "token": "",
+    "url": ""
+  },
+  "upstream": {
+    "cli_version": "",
+    "client_name": "",
+    "client_version": "",
+    "device_token": "",
+    "device_token_file": "",
+    "header_timeout_seconds": 120,
+    "idle_timeout_seconds": 300,
+    "passthrough_ip": false,
+    "timeout_seconds": 120,
+    "user_agent": ""
+  }
+}
